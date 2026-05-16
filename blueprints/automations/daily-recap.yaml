@@ -1,13 +1,13 @@
 blueprint:
-  name: "Daily Location & Weather Recap (Ollama LLM)"
+  name: "Daily Location & Weather Recap (LLM Conversation Agent)"
   description: |
-    Generate a daily recap using an LLM (Ollama) to create natural,
-    engaging summaries of your locations visited and weather conditions.
-    The recap is saved to a Todo List for easy viewing.
+    Generate a daily recap using a conversation agent (Ollama, OpenAI, etc.)
+    to create natural, engaging summaries of your locations visited and
+    weather conditions. The recap is saved to a Todo List.
 
     ## Requirements
 
-    - Ollama integration installed and configured in Home Assistant
+    - Conversation agent integration configured (Ollama, OpenAI, etc.)
     - Weather entities (weather integration)
     - Device tracker or person entities for location tracking
     - Todo List configured (built-in integration)
@@ -25,25 +25,19 @@ blueprint:
 
     ## Setup
 
-    1. Install Ollama integration and configure your preferred model
-    2. Find your Ollama service name in Developer Tools > Services (search "ollama")
-    3. Create a Todo List (Settings > Devices & Services > Add Integration > Todo)
+    1. Install and configure a conversation agent integration (e.g., Ollama)
+    2. Create a Todo List (Settings > Devices & Services > Add Integration > Todo)
        or use the default "My Shopping List" / "My Tasks" lists
-    4. Configure weather entities for each location
-    5. Select device trackers to monitor
-    6. Choose the Todo List to save recaps to
+    3. Configure weather entities for each location
+    4. Select device trackers to monitor
+    5. Choose the Todo List to save recaps to
+    6. Select your conversation agent
     7. Customize the LLM prompt (optional)
 
     ## Location History Feature
 
     This blueprint supports location-based weather tracking using custom Python scripts.
     See the python_scripts/ folder in this repository for setup instructions.
-
-    ## Finding Your Ollama Service
-
-    Go to Developer Tools > Services and search for "ollama" to find the correct
-    service name. Common names: "ollama.generate", "ollama.prompt", or if using
-    the conversation agent: "conversation.process" with agent: ollama
 
   author: "Home Assistant Blueprints"
   source_url: "https://github.com/robotjoosen/homeassistant/blob/main/blueprints/automations/daily-recap.yaml"
@@ -57,23 +51,13 @@ blueprint:
       selector:
         time: {}
 
-    ollama_service:
-      name: Ollama Service
+    conversation_agent:
+      name: Conversation Agent
       description: |
-        The Ollama service to call. Find in Developer Tools > Services.
-        Examples: ollama.generate, conversation.process
-      default: "ollama.generate"
+        The conversation agent to use for generating the recap.
+        This should be your Ollama agent or other LLM agent.
       selector:
-        text:
-          multiline: false
-
-    ollama_model:
-      name: Ollama Model
-      description: The Ollama model to use for generating recaps
-      default: "llama3.2"
-      selector:
-        text:
-          multiline: false
+        conversation_agent: {}
 
     llm_prompt:
       name: LLM Prompt Template
@@ -236,8 +220,8 @@ variables:
     {% endfor %}
     {%- endif %}
 
-  # Prepare prompt
-  prompt: >
+  # Prepare the full text prompt for the conversation agent
+  agent_text: >-
     {% set date = date_str %}
     {% set home_weather = home_weather_str %}
     {% set work_weather = work_weather_str if work_configured | bool else '' %}
@@ -253,19 +237,19 @@ trigger:
 condition: []
 
 action:
-  - alias: "Generate recap using Ollama"
-    service: !input ollama_service
+  - alias: "Generate recap using conversation agent"
+    service: conversation.process
     data:
-      model: !input ollama_model
-      prompt: "{{ prompt }}"
-    response_variable: llm_response
+      agent_id: !input conversation_agent
+      text: "{{ agent_text }}"
+    response_variable: agent_response
 
   - alias: "Add recap to Todo List"
     service: todo.add_item
     data:
       entity_id: !input todo_list
       item: "{{ now().strftime('%Y-%m-%d') }} Daily Recap"
-      description: "{{ llm_response.response | default('Unable to generate recap') }}"
+      description: "{{ agent_response.response.speech.plain.speech | default('Unable to generate recap') }}"
 
   - alias: "Send notification that recap is ready"
     service: !input notification_service
