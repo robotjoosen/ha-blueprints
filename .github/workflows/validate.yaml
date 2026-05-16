@@ -1,0 +1,79 @@
+name: Validate Blueprints
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'blueprints/**/*.yaml'
+      - '.github/workflows/validate.yaml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'blueprints/**/*.yaml'
+      - '.github/workflows/validate.yaml'
+
+jobs:
+  yamllint:
+    name: YAML Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install yamllint
+
+      - name: Run yamllint
+        run: |
+          yamllint -c .yamllint.yaml blueprints/
+
+  schema-validation:
+    name: Schema Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: Validate blueprint schema
+        run: |
+          python .github/scripts/validate_blueprints.py
+
+  check-metadata:
+    name: Check Blueprint Metadata
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: Check metadata
+        run: |
+          python .github/scripts/check_metadata.py

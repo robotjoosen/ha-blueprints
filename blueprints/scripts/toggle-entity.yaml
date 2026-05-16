@@ -1,0 +1,71 @@
+blueprint:
+  name: "Toggle Entity"
+  description: |
+    Simple script to toggle any entity with an optional delay.
+
+    ## Use Cases
+
+    - Toggle a light with a button press
+    - Toggle a switch from an automation
+    - Create a delayed toggle action
+
+  author: "Home Assistant Blueprints"
+  source_url: "https://github.com/robotjoosen/homeassistant/blob/main/blueprints/scripts/toggle-entity.yaml"
+  domain: script
+
+  input:
+    target_entity:
+      name: Entity to Toggle
+      description: The entity that will be toggled
+      selector:
+        entity: {}
+
+    delay_before:
+      name: Delay Before
+      description: Optional delay before toggling (in seconds)
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 300
+          step: 1
+          unit_of_measurement: seconds
+          mode: slider
+
+    delay_after:
+      name: Delay After
+      description: Optional delay after toggling (in seconds)
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 300
+          step: 1
+          unit_of_measurement: seconds
+          mode: slider
+
+sequence:
+  - alias: "Wait before toggle"
+    if:
+      - condition: numeric_state
+        entity_id: input_number.placeholder  # Dummy condition
+        above: -1
+    then:
+      - delay:
+          seconds: !input delay_before
+
+  - alias: "Toggle the entity"
+    service: homeassistant.toggle
+    target:
+      entity_id: !input target_entity
+
+  - alias: "Wait after toggle"
+    if:
+      - condition: numeric_state
+        entity_id: input_number.placeholder  # Dummy condition
+        above: -1
+    then:
+      - delay:
+          seconds: !input delay_after
+
+mode: single

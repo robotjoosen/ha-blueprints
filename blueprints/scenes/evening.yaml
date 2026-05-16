@@ -1,0 +1,64 @@
+blueprint:
+  name: "Evening Scene"
+  description: |
+    Create a cozy evening atmosphere by dimming lights to a warm color temperature.
+
+    ## Requirements
+
+    - At least one dimmable, color-temperature-capable light
+
+    ## Features
+
+    - Sets brightness to a configurable level
+    - Sets color temperature to warm white
+    - Can target multiple lights at once
+
+  author: "Home Assistant Blueprints"
+  source_url: "https://github.com/robotjoosen/homeassistant/blob/main/blueprints/scenes/evening.yaml"
+  domain: automation
+
+  input:
+    target_lights:
+      name: Lights
+      description: The lights to include in the evening scene
+      selector:
+        target:
+          entity:
+            filter:
+              domain: light
+
+    brightness:
+      name: Brightness
+      description: Brightness level (1-255)
+      default: 100
+      selector:
+        number:
+          min: 1
+          max: 255
+          step: 1
+          mode: slider
+
+    color_temp:
+      name: Color Temperature
+      description: Color temperature in mireds (higher = warmer)
+      default: 400
+      selector:
+        number:
+          min: 153
+          max: 500
+          step: 1
+          unit_of_measurement: mireds
+          mode: slider
+
+trigger: []
+
+condition: []
+
+action:
+  - service: light.turn_on
+    target: !input target_lights
+    data:
+      brightness: !input brightness
+      color_temp: !input color_temp
+
+mode: single

@@ -1,0 +1,39 @@
+---
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ".yaml$|.yml$"
+      - id: end-of-file-fixer
+        exclude: ".yaml$|.yml$"
+      - id: check-yaml
+        exclude: "blueprint-template.yaml"
+      - id: check-json
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+
+  - repo: https://github.com/adrienverge/yamllint.git
+    rev: v1.33.0
+    hooks:
+      - id: yamllint
+        files: \\\.yaml$
+        args: [-c, .yamllint.yaml]
+
+  - repo: local
+    hooks:
+      - id: validate-blueprints
+        name: Validate Blueprint Schema
+        entry: python .github/scripts/validate_blueprints.py
+        language: system
+        types: [yaml]
+        files: ^blueprints/.*\\.yaml$
+        pass_filenames: false
+
+      - id: check-metadata
+        name: Check Blueprint Metadata
+        entry: python .github/scripts/check_metadata.py
+        language: system
+        types: [yaml]
+        files: ^blueprints/.*\\.yaml$
+        pass_filenames: false

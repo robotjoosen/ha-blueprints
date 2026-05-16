@@ -1,0 +1,95 @@
+# Template for creating new Home Assistant blueprints
+# Copy this file and fill in your blueprint details
+
+blueprint:
+  name: "Blueprint Name"
+  description: |
+    Describe what this blueprint does and what problem it solves.
+
+    ## Requirements
+
+    - List required entities, integrations, or hardware
+    - Note any prerequisites
+
+    ## Setup
+
+    1. Step-by-step instructions
+    2. Configuration details
+
+    ## Features
+
+    - Feature 1
+    - Feature 2
+
+  author: "Your Name"
+  source_url: "https://github.com/robotjoosen/homeassistant/blob/main/blueprints/automations/FILENAME.yaml"
+  domain: automation  # or script, scene
+
+  input:
+    # Example input - modify for your needs
+    motion_sensor:
+      name: Motion Sensor
+      description: The motion sensor to trigger the automation
+      selector:
+        entity:
+          filter:
+            domain: binary_sensor
+          device_class: motion
+
+    target_light:
+      name: Light
+      description: The light to control
+      selector:
+        entity:
+          filter:
+            domain: light
+
+    duration:
+      name: Duration
+      description: Time to keep the light on after motion stops
+      default: 300
+      selector:
+        number:
+          min: 0
+          max: 1800
+          step: 30
+          unit_of_measurement: seconds
+          mode: slider
+
+# Variables make inputs easier to reference
+variables:
+  motion_sensor: !input motion_sensor
+  target_light: !input target_light
+  duration: !input duration
+
+# Trigger definition
+trigger:
+  - platform: state
+    entity_id: !input motion_sensor
+    from: "off"
+    to: "on"
+
+# Condition (optional)
+condition: []
+
+# Action definition
+action:
+  - service: light.turn_on
+    target:
+      entity_id: !input target_light
+
+  - wait_for_trigger:
+      - platform: state
+        entity_id: !input motion_sensor
+        to: "off"
+
+  - delay:
+      seconds: !input duration
+
+  - service: light.turn_off
+    target:
+      entity_id: !input target_light
+
+# Automation mode
+mode: restart
+max_exceeded: silent

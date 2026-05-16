@@ -1,0 +1,228 @@
+blueprint:
+  name: "Daily Location & Weather Recap (Ollama LLM)"
+  description: |
+    Generate a daily recap using an LLM (Ollama) to create natural,
+    engaging summaries of your locations visited and weather conditions.
+    The recap is saved to a Todo List for easy viewing.
+
+    ## Requirements
+
+    - Ollama integration installed and configured in Home Assistant
+    - Weather entities (weather integration)
+    - Device tracker or person entities for location tracking
+    - Todo List configured (built-in integration)
+    - Notification service (mobile_app, notify group, etc.)
+
+    ## Features
+
+    - LLM-generated natural language recaps
+    - Full recap saved to Todo List
+    - Simple notification when recap is ready
+    - Summarizes weather at home and other locations
+    - Tracks location history throughout the day
+    - Configurable recap time
+    - Customizable LLM prompt template
+
+    ## Setup
+
+    1. Install Ollama integration and configure your preferred model
+    2. Create a Todo List (Settings > Devices & Services > Add Integration > Todo)
+       or use the default "My Shopping List" / "My Tasks" lists
+    3. Configure weather entities for each location
+    4. Select device trackers to monitor
+    5. Choose the Todo List to save recaps to
+    6. Customize the LLM prompt (optional)
+
+  author: "Home Assistant Blueprints"
+  source_url: "https://github.com/robotjoosen/homeassistant/blob/main/blueprints/automations/daily-recap.yaml"
+  domain: automation
+
+  input:
+    recap_time:
+      name: Recap Time
+      description: Time to generate and send the daily recap
+      default: "21:00:00"
+      selector:
+        time: {}
+
+    ollama_model:
+      name: Ollama Model
+      description: The Ollama model to use for generating recaps
+      default: "llama3.2"
+      selector:
+        text:
+          multiline: false
+
+    llm_prompt:
+      name: LLM Prompt Template
+      description: |
+        Prompt template for the LLM. Available variables:
+        {{ date }}, {{ home_weather }}, {{ work_weather }},
+        {{ other_weather }}, {{ locations }}
+      default: |
+        You are a helpful home assistant. Generate a brief, friendly daily recap
+        based on the following information. Keep it conversational and natural.
+
+        Date: {{ date }}
+
+        Weather at Home: {{ home_weather }}
+        {% if work_weather %}Weather at Work: {{ work_weather }}{% endif %}
+        {% if other_weather %}Other Locations: {{ other_weather }}{% endif %}
+
+        Locations of People Today: {{ locations }}
+
+        Write a 2-3 sentence summary that includes the date, weather highlights,
+        and where people spent their day. Be concise but engaging.
+      selector:
+        text:
+          multiline: true
+
+    home_weather:
+      name: Home Weather Entity
+      description: Weather entity for your home location
+      selector:
+        entity:
+          filter:
+            domain: weather
+
+    work_weather:
+      name: Work Weather Entity (Optional)
+      description: Weather entity for your work location
+      default: {}
+      selector:
+        entity:
+          filter:
+            domain: weather
+          multiple: false
+
+    other_locations:
+      name: Other Location Weather Entities
+      description: Additional weather entities for other locations
+      default: []
+      selector:
+        entity:
+          filter:
+            domain: weather
+          multiple: true
+
+    device_trackers:
+      name: Device Trackers
+      description: Device trackers or person entities to include
+      selector:
+        entity:
+          filter:
+            domain:
+              - device_tracker
+              - person
+          multiple: true
+
+    notification_service:
+      name: Notification Service
+      description: Service to use for sending the recap
+      default: "notify.mobile_app_your_phone"
+      selector:
+        text:
+          multiline: false
+
+    todo_list:
+      name: Todo List
+      description: |
+        The Todo List to save the recap to.
+        Create via Settings > Devices & Services > Add Integration > Todo
+      selector:
+        entity:
+          filter:
+            domain: todo
+
+variables:
+  home_weather_entity: !input home_weather
+  work_weather_entity: !input work_weather
+  other_weather_entities: !input other_locations
+  trackers: !input device_trackers
+
+  # Build weather data
+  home_condition: "{{ states(home_weather_entity) | default('unknown') }}"
+  home_temp: "{{ state_attr(home_weather_entity, 'temperature') | default('unknown') }}"
+  home_humidity: "{{ state_attr(home_weather_entity, 'humidity') | default('unknown') }}"
+
+  home_weather_str: >-
+    {{ home_condition | title }} with a temperature of {{ home_temp }}°
+    {%- if home_humidity != 'unknown' -%}
+    and humidity at {{ home_humidity }}%
+    {%- endif -%}
+
+  work_configured: >-
+    {{ work_weather_entity is not none
+       and work_weather_entity | string | length > 0 }}
+  work_weather_str: >-
+    {% if work_configured | bool %}
+    {{ states(work_weather_entity) | title }} with a temperature of
+    {{ state_attr(work_weather_entity, 'temperature') | default('unknown') }}°
+    {%- endif %}
+
+  other_weather_str: >-
+    {% if other_weather_entities | length > 0 %}
+    {% for loc in other_weather_entities %}
+    {% set name = state_attr(loc, 'friendly_name') | default(loc) | title %}
+    {% set condition = states(loc) | title %}
+    {% set temp = state_attr(loc, 'temperature') | default('unknown') %}
+    {{ name }}: {{ condition }}, {{ temp }}°
+    {% endfor %}
+    {%- endif %}
+
+  # Build location data
+  location_str: >-
+    {% for tracker in trackers %}
+    {% set name = state_attr(tracker, 'friendly_name')
+       | default(tracker | replace('person.', '')
+       | replace('device_tracker.', '') | title) %}
+    {% set location = states(tracker) %}
+    {% set readable_location = location | replace('not_home', 'away from home') %}
+    {{ name }} is currently at {{ readable_location }}
+    {%- if not loop.last %}; {% endif -%}
+    {% endfor %}
+
+  # Build date string
+  date_str: "{{ now().strftime('%A, %B %d, %Y') }}"
+
+  # Prepare prompt
+  prompt: >
+    {% set date = date_str %}
+    {% set home_weather = home_weather_str %}
+    {% set work_weather = work_weather_str if work_configured | bool else '' %}
+    {% set other_weather = other_weather_str %}
+    {% set locations = location_str %}
+    {{ llm_prompt }}
+
+trigger:
+  - platform: time
+    at: !input recap_time
+
+condition: []
+
+action:
+  - alias: "Generate recap using Ollama"
+    service: ollama.generate
+    data:
+      model: !input ollama_model
+      prompt: "{{ prompt }}"
+    response_variable: llm_response
+
+  - alias: "Add recap to Todo List"
+    service: todo.add_item
+    data:
+      entity_id: !input todo_list
+      item: "{{ now().strftime('%Y-%m-%d') }} Daily Recap"
+      description: "{{ llm_response.response | default('Unable to generate recap') }}"
+
+  - alias: "Send notification that recap is ready"
+    service: !input notification_service
+    data:
+      title: "🌤️ Daily Recap Ready"
+      message: "Your daily location and weather recap has been added to your Todo List."
+      data:
+        tag: daily-recap
+        group: daily-recap
+        priority: low
+
+mode: single

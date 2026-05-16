@@ -1,0 +1,86 @@
+blueprint:
+  name: "Motion-Activated Light"
+  description: |
+    Turn on a light when motion is detected and turn it off after a configurable delay.
+
+    ## Requirements
+
+    - A motion sensor (binary_sensor with device_class: motion)
+    - A controllable light entity
+
+    ## Features
+
+    - Configurable duration before turning off
+    - Restart mode: motion during the delay resets the timer
+    - Works with any light entity
+
+  author: "Home Assistant Blueprints"
+  source_url: "https://github.com/robotjoosen/homeassistant/blob/main/blueprints/automations/motion-light.yaml"
+  domain: automation
+
+  input:
+    motion_sensor:
+      name: Motion Sensor
+      description: The motion sensor that will trigger the automation
+      selector:
+        entity:
+          filter:
+            domain: binary_sensor
+            device_class: motion
+
+    target_light:
+      name: Light
+      description: The light to turn on when motion is detected
+      selector:
+        entity:
+          filter:
+            domain: light
+
+    duration:
+      name: Duration
+      description: Time to keep the light on after motion stops (in seconds)
+      default: 300
+      selector:
+        number:
+          min: 0
+          max: 1800
+          step: 30
+          unit_of_measurement: seconds
+          mode: slider
+
+variables:
+  motion_sensor: !input motion_sensor
+  target_light: !input target_light
+  duration: !input duration
+
+trigger:
+  - platform: state
+    entity_id: !input motion_sensor
+    from: "off"
+    to: "on"
+
+condition: []
+
+action:
+  - alias: "Turn on the light"
+    service: light.turn_on
+    target:
+      entity_id: !input target_light
+
+  - alias: "Wait for motion to stop"
+    wait_for_trigger:
+      - platform: state
+        entity_id: !input motion_sensor
+        to: "off"
+
+  - alias: "Wait the configured duration"
+    delay:
+      seconds: !input duration
+
+  - alias: "Turn off the light"
+    service: light.turn_off
+    target:
+      entity_id: !input target_light
+
+mode: restart
+max_exceeded: silent
