@@ -1,0 +1,29 @@
+# Python Scripts Configuration
+# Add this to your configuration.yaml: python_script: !include configuration_scripts.yaml
+
+python_script:
+
+# Helper entities for location history tracking
+# Create these via Settings > Devices & Services > Helpers > Text
+input_text:
+  # Location history for each person (JSON format)
+  location_history_roald:
+    name: "Location History - Roald"
+    initial: "[]"
+    max: 255
+
+  location_history_partner:
+    name: "Location History - Partner"
+    initial: "[]"
+    max: 255
+
+  # Location summary for LLM
+  location_summary_roald:
+    name: "Location Summary - Roald"
+    initial: "No location data"
+    max: 255
+
+  location_summary_partner:
+    name: "Location Summary - Partner"
+    initial: "No location data"
+    max: 255

@@ -1,0 +1,23 @@
+# Automation to track location changes
+# Copy this into your automations.yaml or create via UI
+
+alias: "Track Location History - Roald"
+description: "Track location changes and store weather data"
+trigger:
+  - platform: state
+    entity_id: person.roald  # Change to your device_tracker or person entity
+    not_to:
+      - "unavailable"
+      - "unknown"
+condition: []
+action:
+  - service: python_script.track_location_history
+    data:
+      device_tracker: "person.roald"  # Your device tracker entity
+      history_entity: "input_text.location_history_roald"
+      summary_entity: "input_text.location_summary_roald"
+      person_name: "Roald"
+      owm_api_key: "!secret openweathermap_api_key"  # Store in secrets.yaml
+
+mode: queued
+max: 10

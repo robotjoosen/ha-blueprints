@@ -26,12 +26,24 @@ blueprint:
     ## Setup
 
     1. Install Ollama integration and configure your preferred model
-    2. Create a Todo List (Settings > Devices & Services > Add Integration > Todo)
+    2. Find your Ollama service name in Developer Tools > Services (search "ollama")
+    3. Create a Todo List (Settings > Devices & Services > Add Integration > Todo)
        or use the default "My Shopping List" / "My Tasks" lists
-    3. Configure weather entities for each location
-    4. Select device trackers to monitor
-    5. Choose the Todo List to save recaps to
-    6. Customize the LLM prompt (optional)
+    4. Configure weather entities for each location
+    5. Select device trackers to monitor
+    6. Choose the Todo List to save recaps to
+    7. Customize the LLM prompt (optional)
+
+    ## Location History Feature
+
+    This blueprint supports location-based weather tracking using custom Python scripts.
+    See the python_scripts/ folder in this repository for setup instructions.
+
+    ## Finding Your Ollama Service
+
+    Go to Developer Tools > Services and search for "ollama" to find the correct
+    service name. Common names: "ollama.generate", "ollama.prompt", or if using
+    the conversation agent: "conversation.process" with agent: ollama
 
   author: "Home Assistant Blueprints"
   source_url: "https://github.com/robotjoosen/homeassistant/blob/main/blueprints/automations/daily-recap.yaml"
@@ -44,6 +56,16 @@ blueprint:
       default: "21:00:00"
       selector:
         time: {}
+
+    ollama_service:
+      name: Ollama Service
+      description: |
+        The Ollama service to call. Find in Developer Tools > Services.
+        Examples: ollama.generate, conversation.process
+      default: "ollama.generate"
+      selector:
+        text:
+          multiline: false
 
     ollama_model:
       name: Ollama Model
@@ -58,7 +80,7 @@ blueprint:
       description: |
         Prompt template for the LLM. Available variables:
         {{ date }}, {{ home_weather }}, {{ work_weather }},
-        {{ other_weather }}, {{ locations }}
+        {{ other_weather }}, {{ locations }}, {{ location_history }}
       default: |
         You are a helpful home assistant. Generate a brief, friendly daily recap
         based on the following information. Keep it conversational and natural.
@@ -69,10 +91,16 @@ blueprint:
         {% if work_weather %}Weather at Work: {{ work_weather }}{% endif %}
         {% if other_weather %}Other Locations: {{ other_weather }}{% endif %}
 
-        Locations of People Today: {{ locations }}
+        Current Locations: {{ locations }}
+
+        {% if location_history %}
+        Location History Today:
+        {{ location_history }}
+        {% endif %}
 
         Write a 2-3 sentence summary that includes the date, weather highlights,
-        and where people spent their day. Be concise but engaging.
+        and where people spent their day. If location history is provided, mention
+        the places visited and the weather experienced there. Be concise but engaging.
       selector:
         text:
           multiline: true
@@ -134,11 +162,25 @@ blueprint:
           filter:
             domain: todo
 
+    location_history_summaries:
+      name: Location History Summaries
+      description: |
+        Optional: Input text entities containing location history summaries
+        (from python_scripts track_location_history). Include summaries for
+        each person you want to track.
+      default: []
+      selector:
+        entity:
+          filter:
+            domain: input_text
+          multiple: true
+
 variables:
   home_weather_entity: !input home_weather
   work_weather_entity: !input work_weather
   other_weather_entities: !input other_locations
   trackers: !input device_trackers
+  location_summaries: !input location_history_summaries
 
   # Build weather data
   home_condition: "{{ states(home_weather_entity) | default('unknown') }}"
@@ -185,6 +227,15 @@ variables:
   # Build date string
   date_str: "{{ now().strftime('%A, %B %d, %Y') }}"
 
+  # Get location history summaries
+  location_history_str: >-
+    {% if location_summaries | length > 0 %}
+    {% for summary_entity in location_summaries %}
+    {% set summary = states(summary_entity) | default('No data') %}
+    {{ summary }}
+    {% endfor %}
+    {%- endif %}
+
   # Prepare prompt
   prompt: >
     {% set date = date_str %}
@@ -192,6 +243,7 @@ variables:
     {% set work_weather = work_weather_str if work_configured | bool else '' %}
     {% set other_weather = other_weather_str %}
     {% set locations = location_str %}
+    {% set location_history = location_history_str %}
     {{ llm_prompt }}
 
 trigger:
@@ -202,7 +254,7 @@ condition: []
 
 action:
   - alias: "Generate recap using Ollama"
-    service: ollama.generate
+    service: !input ollama_service
     data:
       model: !input ollama_model
       prompt: "{{ prompt }}"
